@@ -1,4 +1,5 @@
-# python -m flask --debug --app service run (works also in PowerShell)
+# set AZURE_STORAGE_CONNECTION_STRING=***
+# python -m flask --debug run (works also in PowerShell)
 
 import datetime
 import os

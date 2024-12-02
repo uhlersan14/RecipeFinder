@@ -15,7 +15,7 @@ jobs:
       - name: setup python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.12.1' # install the python version needed
+          python-version: '3.13.0' # install the python version needed
           cache: 'pip'
           
       - name: install python packages

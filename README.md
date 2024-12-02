@@ -29,7 +29,7 @@ similar dataset https://www.kaggle.com/datasets/roccoli/gpx-hike-tracks
 * Update model and save to Azure Blob Storage
 
 ## App
-* Backend: Python Flask (backend/service.py)
+* Backend: Python Flask (backend/app.py)
 * Frontend: SvelteKit (build still manually)
 
 ## Deployment with Docker
@@ -38,6 +38,13 @@ similar dataset https://www.kaggle.com/datasets/roccoli/gpx-hike-tracks
 * Install dependencies with pip
 * Copy Frontend (prebuilt, TODO Build)
 * Azure Blob Storage: Zugriffsschlüssel als Umgebungsvariable
+
+## Update Requirements
+
+* Delete requirements.txt
+* Create .venv
+* pip install -r dev-requirements.
+* pip-compile requirements.in
 
 ## Ideas
 

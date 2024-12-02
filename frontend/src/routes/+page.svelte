@@ -79,12 +79,12 @@
 <p></p>
 <table>
     <tr>
-        <td>Dauer:</td><td>{prediction}</td>
+        <td>Dauer (Modell):</td><td>{prediction}</td>
     </tr>
     <tr>
-        <td>DIN33466:</td><td>{din33466}</td>
+        <td>Dauer (DIN33466):</td><td>{din33466}</td>
     </tr>
     <tr>
-        <td>SAC:</td><td>{sac}</td>
+        <td>Dauer (SAC):</td><td>{sac}</td>
     </tr>
 </table>
