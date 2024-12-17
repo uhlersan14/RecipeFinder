@@ -3,6 +3,10 @@ name: ModelOps (Build, Deploy)
 on:
     # push:
     workflow_dispatch:
+    workflow_run:
+      workflows: ["ModelOps (Update Model)"]
+      types:
+        - completed
 
 jobs:
     build:
