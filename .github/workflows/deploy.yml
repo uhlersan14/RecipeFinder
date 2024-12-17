@@ -1,5 +1,7 @@
 name: ModelOps (Build, Deploy)
-
+# Requires GitHub Action Secrets: AZURE_WEBAPP_NAME, AZURE_WEBAPP_PUBLISH_PROFILE
+# Requires Azure Env Variable: AZURE_STORAGE_CONNECTION_STRING
+ 
 on:
     # push:
     workflow_dispatch:
