@@ -41,9 +41,8 @@ if 'AZURE_STORAGE_CONNECTION_STRING' in os.environ:
          download_file.write(container_client.download_blob(blob_name).readall())
 
 else:
-    print("CANNOT ACCESS AZURE BLOB STORAGE - Please set connection string as env variable")
+    print("CANNOT ACCESS AZURE BLOB STORAGE - Please set AZURE_STORAGE_CONNECTION_STRING. Current env: ")
     print(os.environ)
-    print("AZURE_STORAGE_CONNECTION_STRING not set")    
 
 file_path = Path(".", "../model/", "GradientBoostingRegressor.pkl")
 with open(file_path, 'rb') as fid:
