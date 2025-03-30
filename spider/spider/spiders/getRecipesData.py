@@ -8,6 +8,8 @@ class RecipeSpider(scrapy.Spider):
     start_urls = [
         "https://www.swissmilk.ch/de/rezepte-kochideen/grundrezepte/",
         "https://www.swissmilk.ch/de/rezepte-kochideen/low-carb/",
+        "https://www.swissmilk.ch/de/rezepte-kochideen/hauptgaenge/"
+
     ]
 
     def parse(self, response):
@@ -30,31 +32,6 @@ class RecipeSpider(scrapy.Spider):
         # Extrahiere den Rezeptnamen
         item['name'] = response.css('h1.DetailPageHeader--title::text').get().strip() or 'No name found'
         
-        # Extrahiere die Zubereitungszeit
-        prep_time_div = response.css('div.QuickFacts--item--inner')
-        prep_time = None
-        for div in prep_time_div:
-            title = div.css('span.QuickFacts--item--title::text').get()
-            if title and "Auf dem Tisch in" in title:
-                time_value = div.css('span.QuickFacts--item--value::text').get()
-                if time_value:
-                    # Extrahiere die Zeit in Minuten
-                    time_match = re.search(r'(\d+)\s*min', time_value)
-                    if time_match:
-                        prep_time = int(time_match.group(1))
-                    else:
-                        # Behandlung von Stunden und Minuten (z.B. "1h 30min")
-                        hours_match = re.search(r'(\d+)\s*h', time_value)
-                        minutes_match = re.search(r'(\d+)\s*min', time_value)
-                        
-                        hours = int(hours_match.group(1)) if hours_match else 0
-                        minutes = int(minutes_match.group(1)) if minutes_match else 0
-                        
-                        if hours > 0 or minutes > 0:
-                            prep_time = hours * 60 + minutes
-        
-        item['prep_time_minutes'] = prep_time
-        
         # Extrahiere Zutaten und Mengen mit strukturiertem Format
         ingredients = []
         for row in response.css('tbody.IngredientsCalculator--group tr.Ingredient'):
@@ -68,7 +45,6 @@ class RecipeSpider(scrapy.Spider):
                 ingredients.append(parsed_ingredient)
         
         item['ingredients'] = ingredients if ingredients else []
-        
         yield item
     
     def parse_ingredient(self, amount_text, ingredient_text):

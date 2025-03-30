@@ -3,6 +3,9 @@ import sys
 import os
 import logging
 import json
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Logging konfigurieren
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -16,9 +19,14 @@ from model.recipe_model import RecipeRecommender
 
 app = Flask(__name__)
 
-# MongoDB-Verbindungs-URL 
-# Anmerkung: In einer Produktionsumgebung sollte dies in einer Umgebungsvariable oder Konfigurationsdatei gespeichert werden
-MONGO_URI = 'mongodb+srv://mongodb:Sa00Ma03$12@mdmmongodbproject.global.mongocluster.cosmos.azure.com/recipes?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000'
+# MongoDB-Verbindungs-URL aus Umgebungsvariablen zusammenbauen
+MONGO_USERNAME = os.getenv('MONGO_USERNAME')
+MONGO_PASSWORD = os.getenv('MONGO_PASSWORD')
+MONGO_HOST = os.getenv('MONGO_HOST')
+MONGO_DATABASE = os.getenv('MONGO_DATABASE')
+
+# Erstelle die Mongo URI aus den Umgebungsvariablen
+MONGO_URI = f'mongodb+srv://{MONGO_USERNAME}:{MONGO_PASSWORD}@{MONGO_HOST}/{MONGO_DATABASE}?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000'
 
 # Modellpfad
 MODEL_PATH = '../RecipeRecommender.pkl'

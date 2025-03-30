@@ -14,6 +14,9 @@ import re
 import os
 from pymongo import MongoClient
 import logging
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Logging konfigurieren
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -24,12 +27,22 @@ class RecipeRecommender:
         """
         Initialisiert das Rezeptempfehlungsmodell mit einer MongoDB-Verbindung.
 
-        Args:
-            mongo_uri (str): MongoDB-Verbindungs-URL.
+         Args:
+            mongo_uri (str): MongoDB-Verbindungs-URL. Falls None, wird aus Umgebungsvariablen aufgebaut.
             db_name (str): Name der Datenbank (Standard: 'recipes').
             collection_name (str): Name der Collection (Standard: 'recipes').
         """
-        self.mongo_uri = mongo_uri
+        if mongo_uri is None:
+            # Baue die URI aus Umgebungsvariablen
+            MONGO_USERNAME = os.getenv('MONGO_USERNAME')
+            MONGO_PASSWORD = os.getenv('MONGO_PASSWORD')
+            MONGO_HOST = os.getenv('MONGO_HOST')
+            MONGO_DATABASE = os.getenv('MONGO_DATABASE', 'recipes')
+            
+            self.mongo_uri = f'mongodb+srv://{MONGO_USERNAME}:{MONGO_PASSWORD}@{MONGO_HOST}/{MONGO_DATABASE}?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000'
+        else:
+            self.mongo_uri = mongo_uri
+            
         self.db_name = db_name
         self.collection_name = collection_name
         self.recipes = None
@@ -416,11 +429,14 @@ class RecipeRecommender:
 
 if __name__ == "__main__":
     import argparse
+    from dotenv import load_dotenv
+
+    load_dotenv()
     
-    # Kommandozeilenargumente einrichten
+   # Kommandozeilenargumente einrichten
     parser = argparse.ArgumentParser(description='Recipe Recommender Model Training')
     parser.add_argument('-u', '--uri', type=str, 
-                        help='MongoDB connection URI')
+                        help='MongoDB connection URI (optional, uses env vars if not provided)')
     parser.add_argument('-o', '--output', type=str, default='RecipeRecommender.pkl',
                         help='Output file for the trained model (default: RecipeRecommender.pkl)')
     parser.add_argument('--test', action='store_true',
@@ -430,13 +446,22 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    # Standardwert für MongoDB URI, falls nicht über Kommandozeile angegeben
+    # Verwende die übergebene URI oder erstelle eine aus Umgebungsvariablen
     if args.uri:
         MONGO_URI = args.uri
     else:
-        MONGO_URI = 'mongodb+srv://<user>:<password>@mdmmongodb.mongocluster.cosmos.azure.com/recipes?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000'
-        logger.warning("Keine MongoDB URI angegeben. Verwende Standardwert (der möglicherweise nicht funktioniert).")
-        logger.warning("Verwende -u oder --uri, um eine eigene URI anzugeben.")
+        # Baue die URI aus Umgebungsvariablen
+        MONGO_USERNAME = os.getenv('MONGO_USERNAME')
+        MONGO_PASSWORD = os.getenv('MONGO_PASSWORD')
+        MONGO_HOST = os.getenv('MONGO_HOST')
+        MONGO_DATABASE = os.getenv('MONGO_DATABASE', 'recipes')
+        
+        if not all([MONGO_USERNAME, MONGO_PASSWORD, MONGO_HOST]):
+            logger.error("Umgebungsvariablen für MongoDB nicht vollständig. Bitte .env-Datei prüfen oder URI angeben.")
+            sys.exit(1)
+            
+        MONGO_URI = f'mongodb+srv://{MONGO_USERNAME}:{MONGO_PASSWORD}@{MONGO_HOST}/{MONGO_DATABASE}?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000'
+        logger.info("Verbindungs-URI aus Umgebungsvariablen generiert.")
     
     try:
         # Erstelle und trainiere das Modell
