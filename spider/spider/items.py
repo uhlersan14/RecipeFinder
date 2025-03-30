@@ -11,4 +11,6 @@ class SpiderItem(scrapy.Item):
     # name = scrapy.Field()
     name = scrapy.Field()
     ingredients = scrapy.Field()
+    # Nur das neue benötigte Feld
+    prep_time_minutes = scrapy.Field()  # Zubereitungszeit in Minuten
     pass

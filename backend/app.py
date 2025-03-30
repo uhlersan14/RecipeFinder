@@ -1,96 +1,152 @@
-# set AZURE_STORAGE_CONNECTION_STRING=***
-# $env:AZURE_STORAGE_CONNECTION_STRING="***"
-# python -m flask --debug run (works also in PowerShell)
-
-import datetime
+# backend/app.py
+import sys
 import os
-import pickle
-from pathlib import Path
+import logging
+import json
 
-import pandas as pd
-from azure.storage.blob import BlobServiceClient
-from flask import Flask, jsonify, request, send_file
-from flask_cors import CORS
+# Logging konfigurieren
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-# init app, load model from storage
-print("*** Init and load model ***")
-if 'AZURE_STORAGE_CONNECTION_STRING' in os.environ:
-    azureStorageConnectionString = os.environ['AZURE_STORAGE_CONNECTION_STRING']
-    blob_service_client = BlobServiceClient.from_connection_string(azureStorageConnectionString)
+# Füge das Root-Verzeichnis (eine Ebene höher) zum Python-Pfad hinzu
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-    print("fetching blob containers...")
-    containers = blob_service_client.list_containers(include_metadata=True)
-    suffix = max(
-        int(container.name.split("-")[-1])
-        for container in containers
-        if container.name.startswith("hikeplanner-model")
-    )
-    model_folder = f"hikeplanner-model-{suffix}"
-    print(f"using model {model_folder}")
-    
-    container_client = blob_service_client.get_container_client(model_folder)
-    blob_list = container_client.list_blobs()
-    blob_name = next(blob.name for blob in blob_list)
+from flask import Flask, render_template, request, jsonify
+from model.recipe_model import RecipeRecommender
 
-    # Download the blob to a local file
-    Path("../model").mkdir(parents=True, exist_ok=True)
-    download_file_path = os.path.join("../model", "GradientBoostingRegressor.pkl")
-    print(f"downloading blob to {download_file_path}")
-
-    with open(file=download_file_path, mode="wb") as download_file:
-         download_file.write(container_client.download_blob(blob_name).readall())
-
-else:
-    print("CANNOT ACCESS AZURE BLOB STORAGE - Please set AZURE_STORAGE_CONNECTION_STRING. Current env: ")
-    print(os.environ)
-
-file_path = Path(".", "../model/", "GradientBoostingRegressor.pkl")
-with open(file_path, 'rb') as fid:
-    model = pickle.load(fid)
-
-print("*** Sample calculation with model ***")
-def din33466(uphill, downhill, distance):
-    km = distance / 1000.0
-    vertical = downhill / 500.0 + uphill / 300.0
-    horizontal = km / 4.0
-    return 3600.0 * (min(vertical, horizontal) / 2 + max(vertical, horizontal))
-
-def sac(uphill, downhill, distance):
-    km = distance / 1000.0
-    return 3600.0 * (uphill/400.0 + km /4.0)
-
-downhill, uphill, length, max_elevation = 300, 700, 10000, 1200
-print(f"Downhill: {downhill}, Uphill {uphill}, Length {length}")
-demoinput = [[downhill,uphill,length,max_elevation]]
-demodf = pd.DataFrame(columns=['downhill', 'uphill', 'length_3d', 'max_elevation'], data=demoinput)
-demooutput = model.predict(demodf)
-time = demooutput[0]
-print("Our Model: " + str(datetime.timedelta(seconds=time)))
-print("DIN33466: " + str(datetime.timedelta(seconds=din33466(uphill=uphill, downhill=downhill, distance=length))))
-print("SAC: " + str(datetime.timedelta(seconds=sac(uphill=uphill, downhill=downhill, distance=length))))
-
-print("*** Init Flask App ***")
 app = Flask(__name__)
-cors = CORS(app)
-app = Flask(__name__, static_url_path='/', static_folder='../frontend/build')
 
-@app.route("/")
-def indexPage():
-     return send_file("../frontend/build/index.html")  
+# MongoDB-Verbindungs-URL 
+# Anmerkung: In einer Produktionsumgebung sollte dies in einer Umgebungsvariable oder Konfigurationsdatei gespeichert werden
+MONGO_URI = 'mongodb+srv://mongodb:Sa00Ma03$12@mdmmongodbproject.global.mongocluster.cosmos.azure.com/recipes?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000'
 
-@app.route("/api/predict")
-def hello_world():
-    downhill = request.args.get('downhill', default = 0, type = int)
-    uphill = request.args.get('uphill', default = 0, type = int)
-    length = request.args.get('length', default = 0, type = int)
+# Modellpfad
+MODEL_PATH = '../RecipeRecommender.pkl'
 
-    demoinput = [[downhill,uphill,length,0]]
-    demodf = pd.DataFrame(columns=['downhill', 'uphill', 'length_3d', 'max_elevation'], data=demoinput)
-    demooutput = model.predict(demodf)
-    time = demooutput[0]
+# Lade oder erstelle das Modell
+try:
+    # Versuche, ein vorhandenes Modell zu laden
+    logger.info(f"Versuche, Modell aus {MODEL_PATH} zu laden...")
+    model = RecipeRecommender.load_model(MODEL_PATH)
+    
+    # Stelle sicher, dass das Modell alle notwendigen Attribute hat
+    # Wenn classifier nicht vorhanden ist, führe preprocess_data aus
+    if not hasattr(model, 'classifier') or model.classifier is None:
+        logger.info("Modell geladen, aber Klassifikator fehlt. Führe preprocess_data aus...")
+        model.load_data()  # Stelle sicher, dass Daten geladen sind
+        model.preprocess_data()
+        # Modell nach der Aktualisierung speichern
+        model.save_model(MODEL_PATH)
+        logger.info("Modell aktualisiert und gespeichert.")
+    
+except FileNotFoundError:
+    # Wenn kein Modell existiert, erstelle ein neues und speichere es
+    logger.info("Kein vorhandenes Modell gefunden. Erstelle ein neues Modell...")
+    model = RecipeRecommender(MONGO_URI)
+    model.load_data()
+    model.preprocess_data()
+    # Evaluiere das Modell
+    metrics = model.evaluate_model()
+    logger.info(f"Modellmetriken: {metrics}")
+    model.save_model(MODEL_PATH)
+except Exception as e:
+    logger.error(f"Fehler beim Laden des Modells: {e}")
+    # Fallback ohne Verbindung zur Datenbank
+    model = None
 
-    return jsonify({
-        'time': str(datetime.timedelta(seconds=time)),
-        'din33466': str(datetime.timedelta(seconds=din33466(uphill=uphill, downhill=downhill, distance=length))),
-        'sac': str(datetime.timedelta(seconds=sac(uphill=uphill, downhill=downhill, distance=length)))
-        })
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    """Hauptseite für die Rezeptempfehlungen."""
+    recommendations = []
+    user_ingredients = []
+    suggestions = []
+    error_message = None
+
+    if model is None:
+        error_message = "Das Rezeptempfehlungsmodell konnte nicht geladen werden. Bitte versuchen Sie es später erneut."
+        return render_template('index.html', error_message=error_message)
+
+    if request.method == 'POST':
+        try:
+            # Hole die eingegebenen Zutaten aus dem Formular
+            ingredients_input = request.form.get('ingredients', '')
+            user_ingredients = [ing.strip() for ing in ingredients_input.split(',') if ing.strip()]
+
+            if user_ingredients:
+                # Empfehle Rezepte basierend auf den eingegebenen Zutaten
+                recommendations = model.recommend(user_ingredients, top_n=5)
+                logger.info(f"{len(recommendations)} Rezepte für {user_ingredients} empfohlen")
+            else:
+                logger.warning("Keine Zutaten eingegeben")
+
+            # Hole Zutaten-Vorschläge, falls ein Suchbegriff eingegeben wurde
+            search_term = request.form.get('search_ingredient', '')
+            if search_term:
+                suggestions = model.suggest_ingredients(search_term, max_suggestions=5)
+                logger.info(f"{len(suggestions)} Vorschläge für '{search_term}' gefunden")
+        except Exception as e:
+            logger.error(f"Fehler bei der Verarbeitung der Anfrage: {e}")
+            error_message = f"Bei der Verarbeitung Ihrer Anfrage ist ein Fehler aufgetreten: {str(e)}"
+
+    return render_template('index.html', 
+                          recommendations=recommendations, 
+                          user_ingredients=user_ingredients, 
+                          suggestions=suggestions,
+                          error_message=error_message)
+
+@app.route('/api/suggestions', methods=['GET'])
+def get_suggestions():
+    """API-Endpunkt für Zutatvorschläge (für AJAX-Anfragen)."""
+    if model is None:
+        return jsonify({"error": "Modell nicht verfügbar"}), 500
+        
+    search_term = request.args.get('term', '')
+    if not search_term or len(search_term) < 2:
+        return jsonify([])
+        
+    try:
+        suggestions = model.suggest_ingredients(search_term, max_suggestions=8)
+        return jsonify(suggestions)
+    except Exception as e:
+        logger.error(f"Fehler bei der Suche nach Zutatenvorschlägen: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/recommend', methods=['POST'])
+def recommend_recipes():
+    """API-Endpunkt für Rezeptempfehlungen (für AJAX-Anfragen)."""
+    if model is None:
+        return jsonify({"error": "Modell nicht verfügbar"}), 500
+        
+    try:
+        data = request.get_json()
+        if not data or 'ingredients' not in data:
+            return jsonify({"error": "Keine Zutaten übermittelt"}), 400
+            
+        ingredients = data['ingredients']
+        limit = data.get('limit', 5)
+        
+        if not ingredients:
+            return jsonify({"error": "Leere Zutatenliste"}), 400
+            
+        recommendations = model.recommend(ingredients, top_n=limit)
+        
+        # Konvertiere MongoDB ObjectIds für JSON-Serialisierung
+        for rec in recommendations:
+            if '_id' in rec['full_recipe']:
+                rec['full_recipe']['_id'] = str(rec['full_recipe']['_id'])
+                
+        return jsonify({"recommendations": recommendations})
+    except Exception as e:
+        logger.error(f"Fehler bei der Rezeptempfehlung: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Einfacher Health-Check-Endpunkt für die Anwendung."""
+    if model is None:
+        return jsonify({"status": "error", "message": "Modell nicht verfügbar"}), 500
+    return jsonify({"status": "ok", "message": "Anwendung läuft"}), 200
+
+if __name__ == "__main__":
+    # Für Entwicklungszwecke
+    app.run(debug=True)
