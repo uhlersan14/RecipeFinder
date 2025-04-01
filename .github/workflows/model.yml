@@ -2,7 +2,7 @@ name: ModelOps (Update Model)
 # Requires GitHub Action Secrets: AZURE_STORAGE_CONNECTION_STRING, MONGODB_URI
 
 on:
-  push:
+  #push:
   workflow_dispatch:
 
 jobs:
@@ -24,7 +24,7 @@ jobs:
           
       - name: scrape recipes data 
         working-directory: ./spider
-        run: scrapy crawl getRecipesData CLOSESPIDER_PAGECOUNT=10 -o ./output.jl
+        run: scrapy crawl recipe_spider -a CLOSESPIDER_PAGECOUNT=10 -o output.jl
 
       - name: upload data to mongodb
         working-directory: ./spider/downloads
