@@ -28,7 +28,7 @@ jobs:
 
       - name: upload data to mongodb
         working-directory: ./spider/downloads
-        run: python ./mongo_import.py -c tracks -i ../file.jl -u "${{secrets.MONGODB_URI}}"
+        run: python ./mongo_import.py -c tracks -i ../output.jl -u "${{secrets.MONGODB_URI}}"
 
       - name: build recipe model
         working-directory: model
