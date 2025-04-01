@@ -194,6 +194,8 @@ zope-interface==7.2
     # via
     #   scrapy
     #   twisted
+python-dotenv==0.19.1
+    # via -r requirements.in
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools

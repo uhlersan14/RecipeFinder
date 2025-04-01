@@ -1,4 +1,3 @@
-import datetime
 import os
 import pickle
 from pathlib import Path
@@ -9,27 +8,42 @@ from flask_cors import CORS
 import logging
 import sys
 
-# Füge das Root-Verzeichnis (eine Ebene höher) zum Python-Pfad hinzu
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-# Importiere RecipeRecommender frühzeitig
+# Nach den imports hinzufügen
+import pickle
+import sys
 from model.recipe_model import RecipeRecommender
+
+# Eigene Unpickler-Klasse definieren
+class CustomUnpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        if name == 'RecipeRecommender':
+            return RecipeRecommender
+        return super().find_class(module, name)
+
+# Modifiziere die Funktionen, die das Modell laden
+def load_model_safely(file_path):
+    with open(file_path, 'rb') as f:
+        return CustomUnpickler(f).load()
+
+# Ersetze diesen Block:
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from model.recipe_model import RecipeRecommender
+
+# Mit diesem:
+from pathlib import Path
+
+# Füge das Stammverzeichnis zum Python-Pfad hinzu, falls nötig
+root_dir = Path(__file__).parent.parent.absolute()
+if str(root_dir) not in sys.path:
+    sys.path.insert(0, str(root_dir))
+
+# Dann importiere die RecipeRecommender-Klasse
+from model.recipe_model import RecipeRecommender
+
 
 # Logging konfigurieren
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
-# MongoDB-Verbindungs-URL aus Umgebungsvariablen zusammenbauen
-MONGO_USERNAME = os.getenv('MONGO_USERNAME')
-MONGO_PASSWORD = os.getenv('MONGO_PASSWORD')
-MONGO_HOST = os.getenv('MONGO_HOST')
-MONGO_DATABASE = os.getenv('MONGO_DATABASE')
-
-# Erstelle die Mongo URI aus den Umgebungsvariablen
-MONGO_URI = f'mongodb+srv://{MONGO_USERNAME}:{MONGO_PASSWORD}@{MONGO_HOST}/{MONGO_DATABASE}?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000'
-
-# Modellpfad
-MODEL_PATH = Path(".", "../model/", "RecipeRecommender.pkl")
 
 # Model laden
 print("*** Init and load model ***")
@@ -65,8 +79,7 @@ if 'AZURE_STORAGE_CONNECTION_STRING' in os.environ:
                     download_file.write(container_client.download_blob(blob_name).readall())
                     
                 # Modell aus Datei laden
-                with open(download_file_path, 'rb') as fid:
-                    model = pickle.load(fid)
+                    model = load_model_safely(download_file_path)
                     print("Modell erfolgreich aus Azure Blob Storage geladen")
             else:
                 print("Keine Blobs im Container gefunden")
@@ -74,45 +87,20 @@ if 'AZURE_STORAGE_CONNECTION_STRING' in os.environ:
             print("Keine recipe-model-Container gefunden")
     except Exception as e:
         print(f"Fehler beim Laden aus Azure: {e}")
-
-# Wenn das Modell nicht aus Azure geladen werden konnte, versuche lokale Datei
-if model is None:
-    try:
-        # Versuche, ein vorhandenes Modell zu laden
-        logger.info(f"Versuche, Modell aus {MODEL_PATH} zu laden...")
-        model = RecipeRecommender.load_model(MODEL_PATH)
-        
-        # Stelle sicher, dass das Modell alle notwendigen Attribute hat
-        if not hasattr(model, 'classifier') or model.classifier is None:
-            logger.info("Modell geladen, aber Klassifikator fehlt. Führe preprocess_data aus...")
-            model.load_data()  # Stelle sicher, dass Daten geladen sind
-            model.preprocess_data()
-            # Modell nach der Aktualisierung speichern
-            model.save_model(MODEL_PATH)
-            logger.info("Modell aktualisiert und gespeichert.")
-    except FileNotFoundError:
-        # Wenn kein Modell existiert, erstelle ein neues und speichere es
-        logger.info("Kein vorhandenes Modell gefunden. Erstelle ein neues Modell...")
-        model = RecipeRecommender(MONGO_URI)
-        model.load_data()
-        model.preprocess_data()
-        # Evaluiere das Modell
-        metrics = model.evaluate_model()
-        logger.info(f"Modellmetriken: {metrics}")
-        model.save_model(MODEL_PATH)
-    except Exception as e:
-        logger.error(f"Fehler beim Laden des Modells: {e}")
-        model = None
+else:
+    print("CANNOT ACCESS AZURE BLOB STORAGE - Please set AZURE_STORAGE_CONNECTION_STRING. Current env: ")
+    print(os.environ)
 
 # Stelle sicher, dass wir ein Modell haben
 if model is None:
     print("FEHLER: Konnte kein Modell laden!")
+    raise Exception("Konnte kein Modell laden. Bitte stelle sicher, dass das Modell in Azure Blob Storage oder lokal verfügbar ist.")
 
-# Diese Funktion @app.route('/') wird so aktualisiert:
+# Initialisiere Flask-App
 app = Flask(__name__)
 CORS(app)
-# Diese Funktion in app.py ersetzen:
 
+# Diese Funktion in app.py ersetzen:
 @app.route('/', methods=['GET', 'POST'])
 def index():
     """Hauptseite für die Rezeptempfehlungen."""
