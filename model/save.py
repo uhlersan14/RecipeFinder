@@ -5,9 +5,6 @@ import os, uuid
 from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
 import argparse
 
-# https://learn.microsoft.com/en-us/azure/storage/blobs/storage-quickstart-blobs-python?tabs=managed-identity%2Croles-azure-portal%2Csign-in-azure-cli
-# Erlaubnis auf eigenes Konto geben :-)
-
 try:
     print("Azure Blob Storage Python quickstart sample")
 
@@ -18,18 +15,13 @@ try:
     # Create the BlobServiceClient object
     blob_service_client = BlobServiceClient.from_connection_string(args.connection)
 
-    # account_url = "https://mosazhaw.blob.core.windows.net"
-    # default_credential = DefaultAzureCredential()
-    # Create the BlobServiceClient object
-    # blob_service_client = BlobServiceClient(account_url, credential=default_credential)
-
     exists = False
     containers = blob_service_client.list_containers(include_metadata=True)
     suffix = 0
     for container in containers:
         existingContainerName = container['name']
         print(existingContainerName, container['metadata'])
-        if existingContainerName.startswith("hikeplanner-model"):
+        if existingContainerName.startswith("recipe-model"):
             parts = existingContainerName.split("-")
             print(parts)
             if (len(parts) == 3):
@@ -38,7 +30,7 @@ try:
                     suffix = newSuffix
 
     suffix += 1
-    container_name = str("hikeplanner-model-" + str(suffix))
+    container_name = str("recipe-model-" + str(suffix))
     print("new container name: ")
     print(container_name)
 
@@ -52,7 +44,7 @@ try:
         # Create the container
         container_client = blob_service_client.create_container(container_name)
 
-    local_file_name = "GradientBoostingRegressor.pkl"
+    local_file_name = "RecipeRecommender.pkl"
     upload_file_path = os.path.join(".", local_file_name)
 
     # Create a blob client using the local file name as the name for the blob

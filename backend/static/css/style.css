@@ -1,12 +1,103 @@
-/* backend/static/css/style.css */
+/* static/css/style.css */
+
+/* Allgemeine Stile */
 body {
     background-color: #f8f9fa;
 }
 
-h1, h2 {
-    color: #343a40;
+.container {
+    max-width: 960px;
 }
 
-.list-group-item {
-    margin-bottom: 10px;
+/* Rezeptliste und Karten */
+.recipe-list {
+    margin-top: 1.5rem;
+}
+
+.recipe-card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    transition: all 0.3s ease;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.recipe-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+}
+
+.recipe-card .card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.match-badge {
+    font-size: 0.9rem;
+    padding: 0.5em 0.8em;
+}
+
+/* Kategorien */
+.category-tag {
+    display: inline-block;
+    background-color: #e9ecef;
+    color: #495057;
+    font-size: 0.9rem;
+    padding: 0.3em 0.6em;
+    border-radius: 0.25rem;
+    margin-right: 0.5rem;
+}
+
+/* Zutatenlisten */
+.ingredients-section {
+    margin-top: 1rem;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-radius: 0.25rem;
+}
+
+.ingredients-title {
+    margin-bottom: 0.75rem;
+    color: #495057;
+}
+
+.ingredient-list {
+    padding-left: 1.25rem;
+    margin-bottom: 0;
+}
+
+/* Verfügbare Zutaten in Grün */
+.available-ingredients li {
+    color: #28a745;
+    margin-bottom: 0.25rem;
+}
+
+.available-ingredients li::marker {
+    color: #28a745;
+}
+
+/* Fehlende Zutaten in Rot */
+.missing-ingredients li {
+    color: #dc3545;
+    margin-bottom: 0.25rem;
+}
+
+.missing-ingredients li::marker {
+    color: #dc3545;
+}
+
+/* Buttons */
+.view-details-btn {
+    margin-top: 0.5rem;
+}
+
+/* Formular für Zutateneingabe */
+#ingredients {
+    font-size: 1rem;
+}
+
+/* Responsive Anpassungen */
+@media (max-width: 767.98px) {
+    .ingredients-section .row .col-md-6:first-child {
+        margin-bottom: 1rem;
+    }
 }

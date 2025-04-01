@@ -2,7 +2,7 @@ name: ModelOps (Update Model)
 # Requires GitHub Action Secrets: AZURE_STORAGE_CONNECTION_STRING, MONGODB_URI
 
 on:
-  # push:
+  push:
   workflow_dispatch:
 
 jobs:
@@ -22,18 +22,18 @@ jobs:
       - name: install python packages
         run: pip install -r requirements.txt
           
-      - name: scrape hikr data 
+      - name: scrape recipes data 
         working-directory: ./spider
-        run: scrapy crawl gpx -s CLOSESPIDER_PAGECOUNT=50 -o file.jl
+        run: scrapy crawl getRecipesData CLOSESPIDER_PAGECOUNT=10 -o ./output.jl
 
       - name: upload data to mongodb
-        working-directory: spider/downloads
+        working-directory: ./spider/downloads
         run: python ./mongo_import.py -c tracks -i ../file.jl -u "${{secrets.MONGODB_URI}}"
 
-      - name: build model
+      - name: build recipe model
         working-directory: model
         run: python ./model.py -u "${{secrets.MONGODB_URI}}"
 
-      - name: upload model
+      - name: upload recipe model
         working-directory: model
         run: python ./save.py -c "${{secrets.AZURE_STORAGE_CONNECTION_STRING}}"

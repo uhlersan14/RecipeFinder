@@ -1,6 +1,7 @@
 # model/recipe_model.py
 # Verbessertes Modell zum Empfehlen von Rezepten basierend auf vorhandenen Zutaten
 
+import argparse
 import sys
 import pandas as pd
 import numpy as np

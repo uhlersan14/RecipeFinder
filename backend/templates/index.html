@@ -2,73 +2,124 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Rezeptempfehlung</title>
-<!-- Bootstrap CSS -->
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<!-- Custom CSS -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rezeptempfehlung</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-<div class="container mt-5">
-<h1 class="mb-4">Rezeptempfehlung</h1>
-<!-- Formular zum Eingeben der Zutaten -->
-<form method="POST" class="mb-4">
-<div class="mb-3">
-<label for="ingredients" class="form-label">Verfügbare Zutaten (kommagetrennt, z. B. Mehl, Eier, Zucker):</label>
-<input type="text" class="form-control" id="ingredients" name="ingredients" value="{{ ', '.join(user_ingredients) }}" placeholder="Mehl, Eier, Zucker">
-</div>
-<button type="submit" class="btn btn-primary">Rezepte empfehlen</button>
-</form>
-<!-- Formular für Zutaten-Vorschläge -->
-<form method="POST" class="mb-4">
-<div class="mb-3">
-<label for="search_ingredient" class="form-label">Zutat suchen (für Vorschläge):</label>
-<input type="text" class="form-control" id="search_ingredient" name="search_ingredient" placeholder="z. B. Mehl">
-</div>
-<button type="submit" class="btn btn-secondary">Vorschläge anzeigen</button>
-</form>
-<!-- Zutaten-Vorschläge anzeigen -->
- {% if suggestions %}
-<h2>Zutaten-Vorschläge</h2>
-<ul class="list-group mb-4">
- {% for suggestion in suggestions %}
-<li class="list-group-item">{{ suggestion }}</li>
- {% endfor %}
-</ul>
- {% endif %}
-<!-- Empfohlene Rezepte anzeigen -->
- {% if recommendations %}
-<h2>Empfohlene Rezepte</h2>
-<ul class="list-group">
- {% for rec in recommendations %}
-<li class="list-group-item">
-<h5>{{ rec.name }} (Übereinstimmung: {{ rec.match_percentage|round(1) }}%)</h5>
- {% if rec.missing_ingredients %}
-<strong>Fehlende Zutaten:</strong>
-<ul>
- {% for ing in rec.missing_ingredients %}
-<li>
- {% if ing.amount and ing.unit %}
- {{ ing.amount }} {{ ing.unit }} {{ ing.ingredient }}
- {% else %}
- {{ ing.ingredient }}
- {% endif %}
-</li>
- {% endfor %}
-</ul>
- {% else %}
-<p class="text-success">Alle Zutaten vorhanden!</p>
- {% endif %}
-</li>
- {% endfor %}
-</ul>
- {% endif %}
-</div>
-<!-- Bootstrap JS (für Interaktivität wie Dropdowns, falls benötigt) -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<!-- Custom JS -->
-<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <div class="container mt-5">
+        <h1 class="mb-4">Rezeptempfehlung</h1>
+        
+        <!-- Formular zum Eingeben der Zutaten -->
+        <form method="POST" class="mb-4">
+            <div class="mb-3">
+                <label for="ingredients" class="form-label">Verfügbare Zutaten (kommagetrennt, z. B. Mehl, Eier, Zucker):</label>
+                <input type="text" class="form-control" id="ingredients" name="ingredients" value="{{ ', '.join(user_ingredients) }}" placeholder="Mehl, Eier, Zucker">
+            </div>
+            <button type="submit" class="btn btn-primary">Rezepte empfehlen</button>
+        </form>
+        
+        <!-- Formular für Zutaten-Vorschläge -->
+        <form method="POST" class="mb-4">
+            <div class="mb-3">
+                <label for="search_ingredient" class="form-label">Zutat suchen (für Vorschläge):</label>
+                <input type="text" class="form-control" id="search_ingredient" name="search_ingredient" placeholder="z. B. Mehl">
+            </div>
+            <button type="submit" class="btn btn-secondary">Vorschläge anzeigen</button>
+        </form>
+        
+        <!-- Zutaten-Vorschläge anzeigen -->
+        {% if suggestions %}
+        <h2>Zutaten-Vorschläge</h2>
+        <ul class="list-group mb-4">
+            {% for suggestion in suggestions %}
+            <li class="list-group-item">{{ suggestion }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        
+        <!-- Empfohlene Rezepte anzeigen -->
+        {% if recommendations %}
+        <h2>Empfohlene Rezepte</h2>
+        <div class="recipe-list">
+            {% for rec in recommendations|sort(attribute='match_percentage', reverse=True) %}
+            <div class="recipe-card card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{{ rec.name }}</h5>
+                    <span class="badge bg-primary match-badge">{{ rec.match_percentage|round(1) }}% Übereinstimmung</span>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Kategorie: <span class="category-tag">{{ rec.category }}</span></p>
+                    
+                    <!-- Zutaten darstellen -->
+                    <div class="ingredients-section">
+                        <h6 class="ingredients-title">Zutaten:</h6>
+                        <div class="row">
+                            <!-- Vorhandene Zutaten -->
+                            <div class="col-md-6">
+                                <h6 class="text-success">Vorhandene Zutaten:</h6>
+                                <ul class="ingredient-list available-ingredients">
+                                    <!-- Lass Python im Backend die Übereinstimmungen berechnen -->
+                                    <!-- Nutze die bereits in rec.missing_ingredients berechneten Daten -->
+                                    {% for ingredient_obj in rec.available_ingredients %}
+                                    <li class="available">
+                                        {% if ingredient_obj.amount and ingredient_obj.unit %}
+                                            {{ ingredient_obj.amount }} {{ ingredient_obj.unit }} {{ ingredient_obj.ingredient }}
+                                        {% else %}
+                                            {{ ingredient_obj.ingredient }}
+                                        {% endif %}
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                            
+                            <!-- Fehlende Zutaten -->
+                            <div class="col-md-6">
+                                {% if rec.missing_ingredients %}
+                                <h6 class="text-danger">Fehlende Zutaten:</h6>
+                                <ul class="ingredient-list missing-ingredients">
+                                    {% for ing in rec.missing_ingredients %}
+                                    <li class="missing">
+                                        {% if ing.amount and ing.unit %}
+                                            {{ ing.amount }} {{ ing.unit }} {{ ing.ingredient }}
+                                        {% else %}
+                                            {{ ing.ingredient }}
+                                        {% endif %}
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                                {% else %}
+                                <p class="text-success">Alle Zutaten vorhanden!</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Optional: Buttons für weitere Aktionen -->
+                    <div class="mt-3">
+                        <button class="btn btn-sm btn-outline-primary view-details-btn" data-recipe-id="{{ rec.id }}">Details anzeigen</button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        
+        <!-- Fehlermeldung anzeigen -->
+        {% if error_message %}
+        <div class="alert alert-danger" role="alert">
+            {{ error_message }}
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Bootstrap JS (für Interaktivität wie Dropdowns, falls benötigt) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Custom JS -->
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
 </html>

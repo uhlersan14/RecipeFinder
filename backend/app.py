@@ -1,23 +1,23 @@
-# backend/app.py
-import sys
+import datetime
 import os
+import pickle
+from pathlib import Path
+import pandas as pd
+from azure.storage.blob import BlobServiceClient
+from flask import Flask, jsonify, request, send_file, render_template
+from flask_cors import CORS
 import logging
-import json
-from dotenv import load_dotenv
-
-load_dotenv()
-
-# Logging konfigurieren
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+import sys
 
 # Füge das Root-Verzeichnis (eine Ebene höher) zum Python-Pfad hinzu
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from flask import Flask, render_template, request, jsonify
+# Importiere RecipeRecommender frühzeitig
 from model.recipe_model import RecipeRecommender
 
-app = Flask(__name__)
+# Logging konfigurieren
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # MongoDB-Verbindungs-URL aus Umgebungsvariablen zusammenbauen
 MONGO_USERNAME = os.getenv('MONGO_USERNAME')
@@ -29,38 +29,89 @@ MONGO_DATABASE = os.getenv('MONGO_DATABASE')
 MONGO_URI = f'mongodb+srv://{MONGO_USERNAME}:{MONGO_PASSWORD}@{MONGO_HOST}/{MONGO_DATABASE}?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000'
 
 # Modellpfad
-MODEL_PATH = '../RecipeRecommender.pkl'
+MODEL_PATH = Path(".", "../model/", "RecipeRecommender.pkl")
 
-# Lade oder erstelle das Modell
-try:
-    # Versuche, ein vorhandenes Modell zu laden
-    logger.info(f"Versuche, Modell aus {MODEL_PATH} zu laden...")
-    model = RecipeRecommender.load_model(MODEL_PATH)
-    
-    # Stelle sicher, dass das Modell alle notwendigen Attribute hat
-    # Wenn classifier nicht vorhanden ist, führe preprocess_data aus
-    if not hasattr(model, 'classifier') or model.classifier is None:
-        logger.info("Modell geladen, aber Klassifikator fehlt. Führe preprocess_data aus...")
-        model.load_data()  # Stelle sicher, dass Daten geladen sind
+# Model laden
+print("*** Init and load model ***")
+model = None
+
+if 'AZURE_STORAGE_CONNECTION_STRING' in os.environ:
+    azureStorageConnectionString = os.environ['AZURE_STORAGE_CONNECTION_STRING']
+    try:
+        blob_service_client = BlobServiceClient.from_connection_string(azureStorageConnectionString)
+        print("Fetching blob containers...")
+        containers = list(blob_service_client.list_containers(include_metadata=True))
+        
+        # Filtern nach recipe-model-Containern
+        model_containers = [container for container in containers if container.name.startswith("recipe-model")]
+        
+        if model_containers:
+            # Höchste Versionsnummer finden
+            suffix = max(int(container.name.split("-")[-1]) for container in model_containers)
+            model_folder = f"recipe-model-{suffix}"
+            print(f"Using model {model_folder}")
+            
+            container_client = blob_service_client.get_container_client(model_folder)
+            blob_list = list(container_client.list_blobs())
+            
+            if blob_list:
+                blob_name = next(blob.name for blob in blob_list)
+                # Download the blob to a local file
+                os.makedirs("model", exist_ok=True)
+                download_file_path = os.path.join("model", "RecipeRecommender.pkl")
+                print(f"Downloading blob to {download_file_path}")
+                
+                with open(file=download_file_path, mode="wb") as download_file:
+                    download_file.write(container_client.download_blob(blob_name).readall())
+                    
+                # Modell aus Datei laden
+                with open(download_file_path, 'rb') as fid:
+                    model = pickle.load(fid)
+                    print("Modell erfolgreich aus Azure Blob Storage geladen")
+            else:
+                print("Keine Blobs im Container gefunden")
+        else:
+            print("Keine recipe-model-Container gefunden")
+    except Exception as e:
+        print(f"Fehler beim Laden aus Azure: {e}")
+
+# Wenn das Modell nicht aus Azure geladen werden konnte, versuche lokale Datei
+if model is None:
+    try:
+        # Versuche, ein vorhandenes Modell zu laden
+        logger.info(f"Versuche, Modell aus {MODEL_PATH} zu laden...")
+        model = RecipeRecommender.load_model(MODEL_PATH)
+        
+        # Stelle sicher, dass das Modell alle notwendigen Attribute hat
+        if not hasattr(model, 'classifier') or model.classifier is None:
+            logger.info("Modell geladen, aber Klassifikator fehlt. Führe preprocess_data aus...")
+            model.load_data()  # Stelle sicher, dass Daten geladen sind
+            model.preprocess_data()
+            # Modell nach der Aktualisierung speichern
+            model.save_model(MODEL_PATH)
+            logger.info("Modell aktualisiert und gespeichert.")
+    except FileNotFoundError:
+        # Wenn kein Modell existiert, erstelle ein neues und speichere es
+        logger.info("Kein vorhandenes Modell gefunden. Erstelle ein neues Modell...")
+        model = RecipeRecommender(MONGO_URI)
+        model.load_data()
         model.preprocess_data()
-        # Modell nach der Aktualisierung speichern
+        # Evaluiere das Modell
+        metrics = model.evaluate_model()
+        logger.info(f"Modellmetriken: {metrics}")
         model.save_model(MODEL_PATH)
-        logger.info("Modell aktualisiert und gespeichert.")
-    
-except FileNotFoundError:
-    # Wenn kein Modell existiert, erstelle ein neues und speichere es
-    logger.info("Kein vorhandenes Modell gefunden. Erstelle ein neues Modell...")
-    model = RecipeRecommender(MONGO_URI)
-    model.load_data()
-    model.preprocess_data()
-    # Evaluiere das Modell
-    metrics = model.evaluate_model()
-    logger.info(f"Modellmetriken: {metrics}")
-    model.save_model(MODEL_PATH)
-except Exception as e:
-    logger.error(f"Fehler beim Laden des Modells: {e}")
-    # Fallback ohne Verbindung zur Datenbank
-    model = None
+    except Exception as e:
+        logger.error(f"Fehler beim Laden des Modells: {e}")
+        model = None
+
+# Stelle sicher, dass wir ein Modell haben
+if model is None:
+    print("FEHLER: Konnte kein Modell laden!")
+
+# Diese Funktion @app.route('/') wird so aktualisiert:
+app = Flask(__name__)
+CORS(app)
+# Diese Funktion in app.py ersetzen:
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -83,6 +134,38 @@ def index():
             if user_ingredients:
                 # Empfehle Rezepte basierend auf den eingegebenen Zutaten
                 recommendations = model.recommend(user_ingredients, top_n=5)
+                
+                # Sortiere nach Übereinstimmung (absteigend)
+                recommendations = sorted(recommendations, key=lambda x: x['match_percentage'], reverse=True)
+                
+                # Verarbeite die Zutaten für jedes Rezept
+                for rec in recommendations:
+                    # Liste für vorhandene Zutaten erstellen
+                    available_ingredients = []
+                    
+                    # Gehe alle Zutaten durch und prüfe, ob sie im Rezept vorkommen
+                    user_ingredients_lower = [ing.lower() for ing in user_ingredients]
+                    
+                    # Für jede Rezeptzutat
+                    for ingredient_obj in rec['full_recipe'].get('ingredients', []):
+                        if not isinstance(ingredient_obj, dict) or 'ingredient' not in ingredient_obj:
+                            continue
+                            
+                        ingredient_name = ingredient_obj['ingredient'].lower()
+                        
+                        # Prüfe, ob die Zutat in einer der Benutzerzutaten enthalten ist
+                        is_available = False
+                        for user_ing in user_ingredients_lower:
+                            if user_ing in ingredient_name:
+                                is_available = True
+                                break
+                                
+                        if is_available:
+                            available_ingredients.append(ingredient_obj)
+                    
+                    # Füge die Liste der vorhandenen Zutaten zum Rezept hinzu
+                    rec['available_ingredients'] = available_ingredients
+                
                 logger.info(f"{len(recommendations)} Rezepte für {user_ingredients} empfohlen")
             else:
                 logger.warning("Keine Zutaten eingegeben")

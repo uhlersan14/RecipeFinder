@@ -6,8 +6,13 @@ FROM python:3.13.0
 
 # Copy Files
 WORKDIR /usr/src/app
-COPY backend/app.py backend/app.py
-COPY frontend/build frontend/build
+COPY backend/app.py /usr/src/app/app.py
+COPY backend/static /usr/src/app/static
+COPY backend/templates /usr/src/app/templates
+COPY model/RecipeRecommender.pkl /usr/src/app/RecipeRecommender.pkl
+
+# Wichtig: Kopiere das komplette model-Modul
+COPY model /usr/src/app/model
 
 # Install
 COPY requirements.txt requirements.txt
