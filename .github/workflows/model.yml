@@ -24,7 +24,7 @@ jobs:
           
       - name: scrape recipes data 
         working-directory: ./spider
-        run: scrapy crawl recipe_spider -a CLOSESPIDER_PAGECOUNT=10 -o output.jl
+        run: scrapy crawl recipe_spider -a CLOSESPIDER_ITEMCOUNT=10 -o output.jl
 
       - name: upload data to mongodb
         working-directory: ./spider/downloads
