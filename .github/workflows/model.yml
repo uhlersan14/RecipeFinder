@@ -32,7 +32,7 @@ jobs:
 
       - name: build recipe model
         working-directory: model
-        run: python ./model.py -u "${{secrets.MONGODB_URI}}"
+        run: python ./recipe_model.py -u "${{secrets.MONGODB_URI}}"
 
       - name: upload recipe model
         working-directory: model
