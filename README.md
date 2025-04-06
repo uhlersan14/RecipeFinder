@@ -7,10 +7,6 @@ inspired by https://www.swissmilk.ch/de/rezepte-kochideen/
 * Scrape regularly for new / additional data
 * Output file.jl (json list)
 * Load data into MongoDB
-* Update model
-    * Produce correlation heatmap
-    * Check R2 (bigger and close to 1 is better)
-    * Check MSE (lower better, square seconds)
 * Save model to model/RecipeRecommender.pkl
 
 ## Azure Blob Storage
