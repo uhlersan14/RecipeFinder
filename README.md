@@ -5,7 +5,7 @@ inspired by https://www.swissmilk.ch/de/rezepte-kochideen/
 ## Spider
 
 * Scrape regularly for new / additional data
-* Output file.jl (json list)
+* Output output.jl (json list)
 * Load data into MongoDB
 * Save model to model/RecipeRecommender.pkl
 
