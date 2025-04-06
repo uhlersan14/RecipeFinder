@@ -1,7 +1,6 @@
-# HikePlanner
+# RecipeFinder
 
-inspired by https://blog.mimacom.com/data-collection-scrapy-hiketime-prediction/
-similar dataset https://www.kaggle.com/datasets/roccoli/gpx-hike-tracks
+inspired by https://www.swissmilk.ch/de/rezepte-kochideen/
 
 ## Spider
 
@@ -12,7 +11,7 @@ similar dataset https://www.kaggle.com/datasets/roccoli/gpx-hike-tracks
     * Produce correlation heatmap
     * Check R2 (bigger and close to 1 is better)
     * Check MSE (lower better, square seconds)
-* Save model to model/GradientBoostingRegressor.pkl
+* Save model to model/RecipeRecommender.pkl
 
 ## Azure Blob Storage
 
@@ -30,7 +29,7 @@ similar dataset https://www.kaggle.com/datasets/roccoli/gpx-hike-tracks
 
 ## App
 * Backend: Python Flask (backend/app.py)
-* Frontend: SvelteKit (build still manually)
+* Frontend: html, css and JS (build still manually)
 
 ## Deployment with Docker
 
@@ -50,5 +49,5 @@ similar dataset https://www.kaggle.com/datasets/roccoli/gpx-hike-tracks
 ## Ideas
 
 * Personalized Model
-    * For a specific Hikr user
-    * z.B. 100 weitere "neue" Daten eines bestimmten Benutzers 
+    * For a specific Recipes
+rs 
