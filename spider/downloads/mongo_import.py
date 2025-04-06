@@ -1,6 +1,6 @@
 import json
 import argparse
-from pymongo import MongoClient
+from pymongo import MongoClient, IndexModel, ASCENDING
 
 class MongoImporter:
     def __init__(self, input_file, mongo_uri, collection_name):
@@ -17,6 +17,10 @@ class MongoImporter:
         self.db = self.client['recipes']  # Explizit die Datenbank angeben
         self.collection = self.db[self.collection_name]
         print(f"Verbunden mit Datenbank 'recipes', Collection '{self.collection_name}'")
+        
+        # Erstelle einen Index für das 'name'-Feld für schnellere Duplikat-Erkennung
+        self.collection.create_index([("name", ASCENDING)])
+        print("Index auf 'name'-Feld erstellt")
 
     def clear_collection(self):
         """Löscht alle vorhandenen Dokumente in der Collection."""
@@ -30,6 +34,9 @@ class MongoImporter:
                 self.db.drop_collection(self.collection_name)
                 self.collection = self.db.create_collection(self.collection_name)
                 print(f"Collection '{self.collection_name}' gelöscht und neu erstellt")
+                
+                # Index nach der Neuerstellung wieder anlegen
+                self.collection.create_index([("name", ASCENDING)])
             except Exception as e2:
                 print(f"Konnte Collection nicht neu erstellen: {e2}")
 
@@ -60,6 +67,48 @@ class MongoImporter:
             
         print(f"Datei gelesen: {line_count} Zeilen, {error_count} Fehler")
 
+    def check_and_filter_duplicates(self, batch):
+        """Prüft und filtert Duplikate basierend auf dem 'name'-Feld."""
+        filtered_batch = []
+        duplicates_count = 0
+        
+        # Sammle alle Namen im aktuellen Batch
+        batch_names = [doc.get('name') for doc in batch if 'name' in doc]
+        
+        # Finde alle bereits existierenden Dokumente mit diesen Namen
+        existing_names = set()
+        if batch_names:
+            cursor = self.collection.find({"name": {"$in": batch_names}}, {"name": 1})
+            existing_names = {doc.get('name') for doc in cursor if 'name' in doc}
+        
+        # Filtere Duplikate
+        for doc in batch:
+            if 'name' not in doc:
+                # Dokumente ohne Name-Feld behalten wir bei
+                filtered_batch.append(doc)
+                continue
+                
+            name = doc.get('name')
+            
+            # Prüfe, ob Name bereits in der Datenbank existiert
+            if name in existing_names:
+                duplicates_count += 1
+                continue
+            
+            # Prüfe, ob Name mehrfach im Batch vorkommt
+            # Wenn ja, nimm nur das erste Vorkommen
+            if name in [d.get('name') for d in filtered_batch]:
+                duplicates_count += 1
+                continue
+                
+            # Ansonsten füge das Dokument zum gefilterten Batch hinzu
+            filtered_batch.append(doc)
+            
+            # Füge den Namen zur Liste der existierenden Namen hinzu
+            existing_names.add(name)
+            
+        return filtered_batch, duplicates_count
+
     def save_to_mongodb(self):
         """Hauptmethode zum Import von Daten in MongoDB."""
         # Verbindung herstellen
@@ -70,17 +119,27 @@ class MongoImporter:
         
         # Daten importieren
         total_inserted = 0
+        total_duplicates = 0
+        
         for idx, batch in enumerate(self.read_lines()):
             if batch:
                 try:
-                    result = self.collection.insert_many(batch)
-                    inserted_count = len(result.inserted_ids)
-                    total_inserted += inserted_count
-                    print(f"Batch {idx + 1} mit {inserted_count} Einträgen gespeichert.")
+                    # Duplikate filtern
+                    filtered_batch, duplicates_count = self.check_and_filter_duplicates(batch)
+                    total_duplicates += duplicates_count
+                    
+                    if filtered_batch:
+                        result = self.collection.insert_many(filtered_batch)
+                        inserted_count = len(result.inserted_ids)
+                        total_inserted += inserted_count
+                        print(f"Batch {idx + 1}: {inserted_count} Einträge gespeichert, {duplicates_count} Duplikate übersprungen.")
+                    else:
+                        print(f"Batch {idx + 1}: Keine neuen Einträge zu speichern, {duplicates_count} Duplikate übersprungen.")
+                        
                 except Exception as e:
                     print(f"Fehler beim Speichern von Batch {idx + 1}: {e}")
         
-        print(f"Import abgeschlossen: {total_inserted} Dokumente insgesamt importiert.")
+        print(f"Import abgeschlossen: {total_inserted} Dokumente importiert, {total_duplicates} Duplikate übersprungen.")
         
         # Verbindung schließen
         self.client.close()

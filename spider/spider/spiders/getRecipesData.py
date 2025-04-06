@@ -8,7 +8,8 @@ class RecipeSpider(scrapy.Spider):
     start_urls = [
         "https://www.swissmilk.ch/de/rezepte-kochideen/grundrezepte/",
         "https://www.swissmilk.ch/de/rezepte-kochideen/low-carb/",
-        "https://www.swissmilk.ch/de/rezepte-kochideen/hauptgaenge/"
+        "https://www.swissmilk.ch/de/rezepte-kochideen/hauptgaenge/",
+        "https://www.swissmilk.ch/de/rezepte-kochideen/vegetarisch/"
 
     ]
 
